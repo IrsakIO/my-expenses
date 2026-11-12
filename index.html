@@ -1,10 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Настройки для PWA на iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Расходы">
@@ -24,15 +22,22 @@
         .expense-category { font-size: 14px; color: #007aff; }
         .expense-amount { font-weight: bold; font-size: 16px; color: #ff3b30; margin-left: 10px; }
         .delete-btn { background: none; border: none; color: #ff3b30; width: auto; font-size: 14px; padding: 5px; margin: 0 0 0 10px; }
+        
+        /* Стили для статистики */
+        .summary-header { font-size: 18px; font-weight: bold; margin: 0 0 10px 0; text-align: center; }
+        .summary-total { font-size: 20px; font-weight: bold; color: #1c1c1e; margin: 15px 0 10px 0; text-align: center; }
+        .summary-category-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #e5e5ea; color: #3a3a3c; }
+        .summary-category-item:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
 
     <h1>Учет расходов</h1>
 
+    <!-- Блок добавления -->
     <div class="card">
         <input type="date" id="dateInput" required>
-        <input type="number" id="amountInput" placeholder="Сумма (₽)" required>
+        <input type="number" id="amountInput" placeholder="Сумма" required>
         <input type="text" id="nameInput" placeholder="Название расхода" required>
         <select id="categoryInput">
             <option value="Продукты">Продукты</option>
@@ -44,13 +49,28 @@
         <button onclick="addExpense()">Добавить расход</button>
     </div>
 
+    <!-- Новый блок статистики -->
+    <div class="card">
+        <div class="summary-header">Итоги за месяц</div>
+        <input type="month" id="monthSelector" onchange="renderSummary()">
+        <div id="summaryContent">
+            <!-- Здесь появится статистика -->
+        </div>
+    </div>
+
+    <!-- Блок списка -->
     <div class="card" id="expensesList">
         <!-- Список расходов будет здесь -->
     </div>
 
     <script>
-        // Установка сегодняшней даты по умолчанию
-        document.getElementById('dateInput').valueAsDate = new Date();
+        // Установка дат по умолчанию
+        const today = new Date();
+        document.getElementById('dateInput').valueAsDate = today;
+        
+        // Установка текущего месяца в фильтр (формат YYYY-MM)
+        const currentMonth = today.toISOString().slice(0, 7);
+        document.getElementById('monthSelector').value = currentMonth;
 
         let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 
@@ -62,15 +82,13 @@
 
             if (!amount || !name || !date) return alert("Заполните все поля");
 
-            const expense = { id: Date.now(), date, amount, name, category };
+            const expense = { id: Date.now(), date, amount: parseFloat(amount), name, category };
             expenses.push(expense);
             
-            // Сортировка по дате (новые сверху)
             expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             saveAndRender();
             
-            // Очистка полей
             document.getElementById('amountInput').value = '';
             document.getElementById('nameInput').value = '';
         }
@@ -94,6 +112,51 @@
         function saveAndRender() {
             localStorage.setItem('expenses', JSON.stringify(expenses));
             renderExpenses();
+            renderSummary();
+        }
+
+        // Новая функция подсчета статистики
+        function renderSummary() {
+            const selectedMonth = document.getElementById('monthSelector').value;
+            const summaryContent = document.getElementById('summaryContent');
+            
+            if (!selectedMonth) {
+                summaryContent.innerHTML = '<div style="text-align:center; color:#8e8e93;">Выберите месяц</div>';
+                return;
+            }
+
+            let total = 0;
+            let categoryTotals = {};
+
+            // Фильтруем и считаем
+            expenses.forEach(e => {
+                if (e.date.startsWith(selectedMonth)) {
+                    total += parseFloat(e.amount);
+                    if (!categoryTotals[e.category]) {
+                        categoryTotals[e.category] = 0;
+                    }
+                    categoryTotals[e.category] += parseFloat(e.amount);
+                }
+            });
+
+            if (total === 0) {
+                summaryContent.innerHTML = '<div style="text-align:center; color:#8e8e93; margin-top:10px;">В этом месяце расходов нет</div>';
+                return;
+            }
+
+            // Формируем HTML для вывода
+            let html = `<div class="summary-total">Всего: ${total.toLocaleString('ru-RU')}</div>`;
+            
+            for (const [category, sum] of Object.entries(categoryTotals)) {
+                html += `
+                    <div class="summary-category-item">
+                        <span>${category}</span>
+                        <span><b>${sum.toLocaleString('ru-RU')}</b></span>
+                    </div>
+                `;
+            }
+
+            summaryContent.innerHTML = html;
         }
 
         function renderExpenses() {
@@ -103,7 +166,6 @@
             let currentGroup = '';
 
             expenses.forEach(e => {
-                // Группировка по дням
                 if (currentGroup !== e.date) {
                     currentGroup = e.date;
                     const dateHeader = document.createElement('div');
@@ -128,7 +190,11 @@
             });
         }
 
+        // Первичная отрисовка при загрузке страницы
         renderExpenses();
+        renderSummary();
     </script>
 </body>
 </html>
+
+
